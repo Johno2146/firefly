@@ -10,6 +10,7 @@
  */
 import nodemailer from "nodemailer";
 
+import { enquiryEmail } from "~/lib/quote-email";
 import { MAIL_TIMEOUTS } from "~/lib/quote-timing";
 
 export type QuoteFields = {
@@ -205,51 +206,22 @@ export function enquirySubject(fields: QuoteFields) {
   return `Quote request from ${fields.name}`;
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/** Every field the customer filled in, laid out to read well in a mail client. */
-export function enquiryBodies(fields: QuoteFields) {
-  const rows: Array<[string, string]> = [
-    ["Full name", fields.name],
-    ["Email", fields.email],
-    ["Phone", fields.phone],
-    ["Postal code", fields.postal],
-    ["Property type", fields.property],
-  ];
-  const text = [
-    "New quote request from the Firefly Solar website.",
-    "",
-    ...rows.map(([label, value]) => `${label}: ${value}`),
-    "",
-    "Message:",
-    fields.message || "(none)",
-    "",
-    `Answer this email to reply to ${fields.name} directly.`,
-  ].join("\n");
-
-  const html = [
-    "<h2 style=\"margin:0 0 12px;font-family:sans-serif\">Quote request from the Firefly Solar website</h2>",
-    "<table cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-family:sans-serif;font-size:14px\">",
-    // One element per row, spread as an array. Deliberately no join("") here:
-    // spreading a string yields one element per character, and the outer
-    // join("\n") then put a line break between every single character of the
-    // table rows, which reached the owner's mailbox as mangled markup.
-    ...rows.map(
-      ([label, value]) =>
-        `<tr><td style="font-weight:bold;padding-right:12px">${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`,
-    ),
-    "</table>",
-    `<p style="font-family:sans-serif;font-size:14px;white-space:pre-wrap"><strong>Message</strong><br>${escapeHtml(fields.message || "(none)")}</p>`,
-    `<p style="font-family:sans-serif;font-size:13px;color:#555">Answer this email to reply to ${escapeHtml(fields.name)} directly.</p>`,
-  ].join("\n");
-
-  return { text, html };
+/**
+ * Every field the customer filled in, as the two parts a mail client shows.
+ *
+ * The body itself lives in quote-email.ts, which builds the table based HTML
+ * document the owner sees and the plain text version that stands alone. It is a
+ * separate module because it is a design artefact with its own rules (inline
+ * styles, measured contrast pairs, no remote image but the logo) and it is the
+ * one file to edit when the look of the enquiry changes.
+ *
+ * History worth keeping in mind: this used to build its own HTML here and a
+ * stray join("") over a spread string put a line break between every single
+ * character of the table rows, which reached the owner's mailbox as mangled
+ * markup. The builder now compiles each row as one complete string.
+ */
+export function enquiryBodies(fields: QuoteFields, at = new Date()) {
+  return enquiryEmail(fields, at);
 }
 
 export type SendFailure = {
