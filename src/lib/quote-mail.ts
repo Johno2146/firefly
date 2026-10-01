@@ -89,8 +89,10 @@ export function validateQuote(payload: unknown): ValidationResult {
   const raw = payload as Record<string, unknown>;
 
   // Honeypot: a real customer never sees this field, so anything in it is a
-  // bot filling every input it can find.
-  const trap = clean(raw.company ?? raw.honeypot ?? "", true);
+  // bot filling every input it can find. The field is named something autofill
+  // ignores, and the older names are still read so a browser holding a cached
+  // copy of the previous form cannot have its enquiry thrown away.
+  const trap = clean(raw.firefly_extra ?? raw.company ?? raw.honeypot ?? "", true);
   if (trap) return { ok: false, reason: "rejected", fields: [] };
 
   const fields: QuoteFields = {

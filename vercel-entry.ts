@@ -16,7 +16,45 @@ const fetchHandler = handler as {
   fetch: (request: Request) => Response | Promise<Response>;
 };
 
-const toWebRequest = (req: IncomingMessage): Request => {
+/**
+ * A launcher may hand us the raw IncomingMessage, or it may have read and parsed
+ * the body for us first and left it on `req.body` (Vercel's Node launcher does
+ * exactly that: it buffers the request, consumes the stream and sets `req.body`).
+ * Passing the IncomingMessage itself as a web Request body is the fragile case:
+ * once a launcher has drained it, `await request.text()` reads an empty string,
+ * JSON.parse throws, and a perfectly good enquiry is answered as unreadable.
+ *
+ * So the body is built defensively: use what the launcher already parsed when it
+ * is there, and only drain the stream ourselves when it is not.
+ */
+type LauncherRequest = IncomingMessage & { body?: unknown; rawBody?: unknown };
+
+/** The launcher's parsed body, as something a web Request will accept. */
+function launcherBody(body: unknown): string | Uint8Array | null {
+  if (body == null) return null;
+  if (typeof body === "string") return body;
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof Uint8Array) return body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  // An already parsed JSON body (the usual case on the host) is re-serialised
+  // back to the bytes the route expects to read.
+  if (typeof body === "object") return JSON.stringify(body);
+  return String(body);
+}
+
+/** The stream is ours to read: this is the plain Node server case. */
+function drainBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer | string) =>
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk),
+    );
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+const toWebRequest = async (req: LauncherRequest): Promise<Request> => {
   const host = req.headers.host ?? "localhost";
   const proto = (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
   const url = `${proto}://${host}${req.url ?? "/"}`;
@@ -26,12 +64,33 @@ const toWebRequest = (req: IncomingMessage): Request => {
     else if (value != null) headers.set(key, value);
   }
   const method = req.method ?? "GET";
-  const hasBody = method !== "GET" && method !== "HEAD";
+
+  // GET and HEAD stay bodyless, as they must.
+  let body: string | Uint8Array | null = null;
+  if (method !== "GET" && method !== "HEAD") {
+    body = launcherBody(req.body) ?? launcherBody(req.rawBody);
+    // Nothing parsed for us: read the stream, unless a launcher already
+    // consumed it (readableEnded, or no longer readable at all), in which case
+    // there is nothing left to read and waiting on it would hang the request.
+    if (body === null && !req.readableEnded && req.readable) body = await drainBody(req);
+    if (body !== null) {
+      // The body we are handing on is the one that counts, so the length and
+      // framing headers are rewritten to match it.
+      headers.set(
+        "content-length",
+        String(typeof body === "string" ? Buffer.byteLength(body) : body.byteLength),
+      );
+      headers.delete("transfer-encoding");
+    }
+  }
+
+  // `body` is a string or bytes here, both of which the Request constructor
+  // accepts; the cast is only for the generic Uint8Array typing in lib.dom.
   return new Request(url, {
     method,
     headers,
-    ...(hasBody ? { body: req as unknown as ReadableStream, duplex: "half" } : {}),
-  } as RequestInit);
+    ...(body !== null ? { body: body as BodyInit } : {}),
+  });
 };
 
 export default async function vercelHandler(
@@ -39,7 +98,7 @@ export default async function vercelHandler(
   res: ServerResponse
 ): Promise<void> {
   try {
-    const webRes = await fetchHandler.fetch(toWebRequest(req));
+    const webRes = await fetchHandler.fetch(await toWebRequest(req));
     res.statusCode = webRes.status;
     webRes.headers.forEach((value, key) => res.setHeader(key, value));
     if (webRes.body) {

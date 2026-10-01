@@ -153,29 +153,54 @@ const FAILURE_FALLBACK_LABEL = "Send it from my own email app instead";
 const FAILURE_FALLBACK_NOTE =
   "Your email app opens with everything you typed already written in, and you press send there. WhatsApp works the same way with the buttons just below.";
 
-/** The wording for each machine readable reason the server can send back. */
+/**
+ * The wording for each machine readable reason the server can send back.
+ *
+ * Only one answer puts the ball in the customer's court: `invalid_fields`, where
+ * the server names the details it could not accept. Every other reason is
+ * something that went wrong on this side of the table, and the customer is told
+ * exactly that rather than being asked to check details that were never the
+ * problem. Nothing here ever claims an enquiry was sent. No dash characters,
+ * by the owner's rule.
+ */
 function failureFrom(reason: string, fields: unknown): { title: string; body: string } {
-  const fallback =
-    "Something went wrong before your message reached our inbox. Everything you typed is still in the form, so press send again in a moment, or use the email or WhatsApp buttons just below.";
+  // Our fault, whatever the exact reason was: the enquiry never got read, or
+  // never got as far as the inbox. Say so plainly, and point at the two buttons
+  // that do reach the business today.
+  const ourFault = {
+    title: "Your enquiry did not reach our inbox.",
+    body: "Something went wrong on our side while this page was handing your enquiry over, so nothing was sent and nothing you typed is the reason. Everything you typed is still in the form: press send again in a moment, or use the email or WhatsApp buttons just below and send it yourself.",
+  };
+
   if (reason === "rate_limited") {
     return {
       title: NOT_SENT_TITLE,
       body: "Too many enquiries came from this connection in the last few minutes, so this one was held back. Wait a few minutes and press send again, or use the email or WhatsApp buttons just below.",
     };
   }
-  if (reason === "invalid_fields" || reason === "rejected" || reason === "invalid_body") {
+  if (reason === "invalid_fields") {
     const list = Array.isArray(fields)
       ? fields.filter((field): field is string => typeof field === "string")
       : [];
+    // Without a field name there is nothing for the customer to check, so this
+    // is our problem, not theirs.
+    if (list.length === 0) return ourFault;
     return {
       title: NOT_SENT_TITLE,
-      body:
-        list.length > 0
-          ? `Please check these details and press send again: ${list.join(", ")}. Everything you typed is still in the form.`
-          : "Please check your details and press send again. Everything you typed is still in the form.",
+      body: `Please check these details and press send again: ${list.join(", ")}. Everything you typed is still in the form.`,
     };
   }
-  return { title: NOT_SENT_TITLE, body: fallback };
+  if (reason === "rejected") {
+    // The spam trap fired. A real customer can trip it through no fault of
+    // their own, so this blames nobody and still offers a way through.
+    return {
+      title: "Our spam check turned this enquiry away.",
+      body: "This happens when a browser or a password manager fills in a part of the form that a person never sees, so nothing was sent. Nothing that you typed caused it, and everything you typed is still in the form. Press send again, or use the email or WhatsApp buttons just below and send the same details yourself.",
+    };
+  }
+  // invalid_body, method_not_allowed, unsupported_media_type, a send that failed
+  // before it reached a status, and any reason this page has not seen before.
+  return ourFault;
 }
 
 export function QuoteForm() {
@@ -260,7 +285,7 @@ export function QuoteForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...values,
-          company: honeypotRef.current?.value ?? "",
+          firefly_extra: honeypotRef.current?.value ?? "",
         }),
         signal: controller.signal,
       });
@@ -524,17 +549,20 @@ export function QuoteForm() {
             {/*
               Honeypot. A customer never sees or reaches this field, so anything
               in it is a script filling every input it can find, and the server
-              throws the enquiry away.
+              throws the enquiry away. Its name is deliberately meaningless to a
+              browser's autofill: a field called "company" is an organisation
+              field, which a password manager or autofill can fill in for a real
+              customer and so trip the trap on an enquiry that was genuine.
             */}
-            <div aria-hidden className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
-              <label htmlFor="company">Company</label>
+            <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
               <input
                 ref={honeypotRef}
-                id="company"
-                name="company"
+                id="firefly_extra"
+                name="firefly_extra"
                 type="text"
                 tabIndex={-1}
                 autoComplete="off"
+                aria-hidden="true"
                 defaultValue=""
               />
             </div>
