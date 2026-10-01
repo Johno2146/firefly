@@ -9,6 +9,7 @@ import {
 } from "~/components/Icons";
 import { Reveal } from "~/components/Reveal";
 import { CONTACT, whatsappLink } from "~/lib/content";
+import { QUOTE_REQUEST_TIMEOUT_MS } from "~/lib/quote-timing";
 
 /**
  * The quote form tries to send the enquiry itself, through POST /api/quote, so
@@ -30,6 +31,14 @@ import { CONTACT, whatsappLink } from "~/lib/content";
  * the rest): the error panel explains what did not work, and the same
  * compose-it-yourself action sits beside it as a clear second way through, so a
  * struggling server never leaves a customer with no route to the business.
+ *
+ * Some failures do not tell us whether the enquiry was sent. A timeout, a
+ * connection lost part way through, an answer this page could not read and a
+ * mail server that stopped mid conversation are all of them unknown rather than
+ * "not sent", so those panels say exactly that, tell the customer their enquiry
+ * may still have arrived, and point at the two buttons that reach the business
+ * either way. This page never states that nothing was sent unless the server
+ * actually said so.
  *
  * The email and WhatsApp buttons are the other way round. They hand the enquiry
  * to the customer's own app, and the status line next to them says exactly
@@ -137,6 +146,49 @@ const HANDOFF_TEXT: Record<Channel, Record<Handoff["stage"], string>> = {
 const NOT_SENT_TITLE = "Your details did not go through.";
 
 /**
+ * The wording for a failure that does not tell us whether the enquiry was sent.
+ *
+ * There is one honest fact in all of these: the mailbox may have accepted the
+ * message before the conversation broke down, so neither "sent" nor "not sent"
+ * can be claimed. The customer gets that plain statement, told that it may still
+ * arrive, and a route that reaches the business without waiting on the mailbox.
+ * The browser's own limit sits above the mailer's worst case (quote-timing.ts),
+ * so in the normal case this endpoint answers with a definite reason first and
+ * this wording is the exception rather than the rule. No dash characters, by the
+ * owner's rule.
+ */
+const UNCONFIRMED_TITLE = "We could not confirm that your enquiry arrived.";
+
+/** How an unconfirmed panel ends: never a claim that nothing was sent. */
+const UNCONFIRMED_ADVICE =
+  "It may still reach our inbox. Keep an eye out for a reply from us over the next day, and if you would rather not wait, send the same details using the email or WhatsApp buttons just below. Everything you typed is still in the form, so you can also press send again.";
+
+const UNCONFIRMED_BODIES = {
+  /** The page stopped waiting before the server answered at all. */
+  slow: `Our mailbox took too long to answer this page, so the page stopped waiting and we cannot say whether your enquiry reached our inbox. ${UNCONFIRMED_ADVICE}`,
+  /** The connection dropped under us before the server answered. */
+  dropped: `This page lost contact with our inbox before the send finished, so we cannot say whether your enquiry reached it. ${UNCONFIRMED_ADVICE}`,
+  /** The server answered, but with something this page could not read. */
+  unreadable: `Our inbox answered this page with something the page could not read, so we cannot say whether your enquiry reached it. ${UNCONFIRMED_ADVICE}`,
+  /** The mail server gave up part way through the conversation. */
+  server: `Our mail server stopped answering part way through the send, so we cannot say whether your enquiry reached our inbox. ${UNCONFIRMED_ADVICE}`,
+};
+
+/**
+ * The reasons the server can only send before the mailbox is handed the message,
+ * or because it never reached the mailbox at all. For these, and only these, the
+ * page can tell the customer plainly that nothing was sent.
+ */
+const NOT_SENT_REASONS = new Set([
+  "invalid_body",
+  "method_not_allowed",
+  "unsupported_media_type",
+  "payload_too_large",
+  "auth_failed",
+  "unreachable",
+]);
+
+/**
  * The two step wording for the fallback, used for both the automatic handoff on
  * the not configured answer and the error panel's second action. It never says
  * an enquiry was sent: the site could not send it, the customer's own email app
@@ -160,8 +212,14 @@ const FAILURE_FALLBACK_NOTE =
  * the server names the details it could not accept. Every other reason is
  * something that went wrong on this side of the table, and the customer is told
  * exactly that rather than being asked to check details that were never the
- * problem. Nothing here ever claims an enquiry was sent. No dash characters,
- * by the owner's rule.
+ * problem.
+ *
+ * Reasons the server reaches before the mailbox has the message are told as
+ * "nothing was sent", because that is true. A send that stopped part way through
+ * is not one of those: the mailbox may have accepted it, so that one is answered
+ * with the unconfirmed wording instead. Anything this page does not recognise is
+ * treated the same way, because an answer we cannot read is not evidence that
+ * nothing arrived. No dash characters, by the owner's rule.
  */
 function failureFrom(reason: string, fields: unknown): { title: string; body: string } {
   // Our fault, whatever the exact reason was: the enquiry never got read, or
@@ -198,9 +256,15 @@ function failureFrom(reason: string, fields: unknown): { title: string; body: st
       body: "This happens when a browser or a password manager fills in a part of the form that a person never sees, so nothing was sent. Nothing that you typed caused it, and everything you typed is still in the form. Press send again, or use the email or WhatsApp buttons just below and send the same details yourself.",
     };
   }
-  // invalid_body, method_not_allowed, unsupported_media_type, a send that failed
-  // before it reached a status, and any reason this page has not seen before.
-  return ourFault;
+  if (reason === "timeout" || reason === "send_failed") {
+    // The mail server took the conversation this far and then went quiet, which
+    // can happen either side of the mailbox accepting the message.
+    return { title: UNCONFIRMED_TITLE, body: UNCONFIRMED_BODIES.server };
+  }
+  if (NOT_SENT_REASONS.has(reason)) return ourFault;
+  // A reason this page has not seen before, or no reason at all. The server did
+  // not say the enquiry was not sent, so neither does this page.
+  return { title: UNCONFIRMED_TITLE, body: UNCONFIRMED_BODIES.unreadable };
 }
 
 export function QuoteForm() {
@@ -278,7 +342,10 @@ export function QuoteForm() {
     setStatus({ kind: "sending" });
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    // Deliberately longer than the mailer's own worst case, so this page only
+    // gives up after the endpoint has had its say. A page that gave up first
+    // would show a failure for an enquiry the mailbox may well have accepted.
+    const timer = setTimeout(() => controller.abort(), QUOTE_REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch("/api/quote", {
         method: "POST",
@@ -313,13 +380,15 @@ export function QuoteForm() {
       }
       setStatus({ kind: "failed", ...failureFrom(reason, payload?.fields) });
     } catch (error) {
+      // The fetch rejected, so this page never got an answer at all: either the
+      // limit above was reached, or the connection went before the server could
+      // reply. Both leave the same honest fact, that the enquiry may or may not
+      // have arrived, so neither is reported as "not sent".
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus({
         kind: "failed",
-        title: timedOut ? "Your enquiry was taking too long to send." : NOT_SENT_TITLE,
-        body: timedOut
-          ? "The request to our inbox timed out before it finished, so nothing was sent. Everything you typed is still in the form, so press send again, or use the email or WhatsApp buttons just below."
-          : "This page could not reach our inbox just now, which usually means the connection dropped. Everything you typed is still in the form, so press send again in a moment, or use the email or WhatsApp buttons just below.",
+        title: UNCONFIRMED_TITLE,
+        body: timedOut ? UNCONFIRMED_BODIES.slow : UNCONFIRMED_BODIES.dropped,
       });
     } finally {
       clearTimeout(timer);

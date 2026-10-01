@@ -10,6 +10,8 @@
  */
 import nodemailer from "nodemailer";
 
+import { MAIL_TIMEOUTS } from "~/lib/quote-timing";
+
 export type QuoteFields = {
   name: string;
   email: string;
@@ -234,12 +236,14 @@ export function enquiryBodies(fields: QuoteFields) {
   const html = [
     "<h2 style=\"margin:0 0 12px;font-family:sans-serif\">Quote request from the Firefly Solar website</h2>",
     "<table cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-family:sans-serif;font-size:14px\">",
-    ...rows
-      .map(
-        ([label, value]) =>
-          `<tr><td style="font-weight:bold;padding-right:12px">${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`,
-      )
-      .join(""),
+    // One element per row, spread as an array. Deliberately no join("") here:
+    // spreading a string yields one element per character, and the outer
+    // join("\n") then put a line break between every single character of the
+    // table rows, which reached the owner's mailbox as mangled markup.
+    ...rows.map(
+      ([label, value]) =>
+        `<tr><td style="font-weight:bold;padding-right:12px">${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`,
+    ),
     "</table>",
     `<p style="font-family:sans-serif;font-size:14px;white-space:pre-wrap"><strong>Message</strong><br>${escapeHtml(fields.message || "(none)")}</p>`,
     `<p style="font-family:sans-serif;font-size:13px;color:#555">Answer this email to reply to ${escapeHtml(fields.name)} directly.</p>`,
@@ -279,6 +283,15 @@ function describeFailure(error: unknown): SendFailure {
  * Hands the enquiry to the owner's own mailbox. Resolves with a failure instead
  * of throwing so the route can answer with a clear status, and the transport is
  * closed either way so a dead connection cannot pile up.
+ *
+ * Every phase of the handshake is bounded (see quote-timing.ts): a mailbox host
+ * that does not resolve, a port that does not answer, a server that never sends
+ * its greeting and a session that goes silent each end in a failure here, inside
+ * the browser's own request limit, so the customer is told about a timeout by
+ * this endpoint rather than left guessing at a dead request. The transport is
+ * deliberately not pooled: the site is served as a short lived function, so a
+ * pooled connection would either be thrown away between enquiries or, worse,
+ * carried across two customers' requests, for no measurable gain.
  */
 export async function sendQuoteMail(
   fields: QuoteFields,
@@ -289,9 +302,7 @@ export async function sendQuoteMail(
     port: config.port,
     secure: config.secure,
     auth: { user: config.user, pass: config.pass },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 15000,
+    ...MAIL_TIMEOUTS,
   });
 
   const { text, html } = enquiryBodies(fields);
