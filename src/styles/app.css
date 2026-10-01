@@ -1,0 +1,756 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ *  Type: Plus Jakarta Sans, self-hosted (no third-party request).
+ * ------------------------------------------------------------------ */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+/**
+ * Metric-adjusted local fallback: the swap from system font to webfont keeps
+ * the same line boxes, so the hero does not shift or "pop" while it loads.
+ */
+@font-face {
+  font-family: "Jakarta Fallback";
+  src: local("Arial"), local("Helvetica Neue"), local("Segoe UI");
+  size-adjust: 101%;
+  ascent-override: 96%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Firefly Solar, design tokens
+ *
+ *  Taken from the owner's own logo file, which is the only place the brand
+ *  colours exist: orange #F2521B (the hands), gold #F8AB0C (the brush ring)
+ *  and near black #231F20 (the house and the FIREFLY wordmark). Every step
+ *  below is a tint or shade of one of those three anchors, and the ramp
+ *  keeps the token names it had before so no component had to change shape.
+ *
+ *  Which shade goes where is decided by measured contrast, not by eye: see
+ *  the pair table in the delivery report. The short version, white and
+ *  near white surfaces carry the dark steps (flame-600 and flame-700 for
+ *  text), dark surfaces carry the light steps (flame-100 to flame-300), and
+ *  the pure orange anchor is a surface, never small text on white.
+ * ------------------------------------------------------------------ */
+@theme {
+  --font-sans:
+    "Plus Jakarta Sans", "Jakarta Fallback", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Near black #231F20, the wordmark and the house. */
+  --color-ink-950: #231f20;
+  --color-ink-900: #2a2526;
+  --color-ink-850: #302b2b;
+  --color-ink-800: #383333;
+  --color-ink-700: #45403f;
+  --color-ink-600: #524c4a;
+  --color-ink-500: #67605f;
+  --color-ink-400: #7a7371;
+  --color-line: #e9e4e2;
+
+  /* Orange #F2521B, the hands. */
+  --color-flame-50: #fef4ef;
+  --color-flame-100: #fcdcd0;
+  --color-flame-200: #f8b79c;
+  --color-flame-300: #fa9d78;
+  --color-flame-400: #f4703c;
+  --color-flame-500: #f2521b;
+  --color-flame-600: #c6390d;
+  --color-flame-700: #a83208;
+  --color-flame-800: #7e2405;
+
+  /* Gold #F8AB0C, the brush ring and the butterfly's wing. */
+  --color-gold-400: #f8ab0c;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Base
+ * ------------------------------------------------------------------ */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white font-sans text-ink-600 antialiased;
+    overflow-x: hidden;
+  }
+
+  /* While the storage notice is up, the page carries exactly its height as
+     bottom padding (measured into --cookie-h by the notice itself), so the
+     phone, WhatsApp and email actions at the end of the page are never
+     underneath it on a phone. */
+  html[data-cookie="visible"] body {
+    padding-bottom: calc(var(--cookie-h, 0px) + 1.5rem);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-ink-950;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  section[id] {
+    scroll-margin-top: 6rem;
+  }
+
+  ::selection {
+    background: var(--color-flame-500);
+    color: var(--color-ink-950);
+  }
+
+  /* Dual-ring focus indicator: readable on both light and dark sections. */
+  :focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 2px var(--focus-inner, #ffffff),
+      0 0 0 5px var(--focus-outer, #a83208);
+    border-radius: 0.5rem;
+  }
+
+  .on-dark {
+    --focus-inner: #231f20;
+    --focus-outer: #f8ab0c;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Keyframes, transform/opacity only, and short.
+ * ------------------------------------------------------------------ */
+@keyframes hero-rise {
+  from {
+    /* Starts at 25% rather than 0: the entrance is the same rise, but the
+       headline is never fully invisible, even in the first frame. */
+    opacity: 0.25;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes drift-a {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--ff-opacity, 0.7);
+  }
+  50% {
+    transform: translate3d(var(--ff-x, 30px), var(--ff-y, -60px), 0);
+    opacity: var(--ff-opacity, 0.7);
+  }
+  85% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Opacity only: a composited glow costs nothing to breathe. */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sheen {
+  from {
+    transform: translate3d(-120%, 0, 0) skewX(-14deg);
+  }
+  to {
+    transform: translate3d(320%, 0, 0) skewX(-14deg);
+  }
+}
+
+/**
+ * Page transition: a short fade-and-rise of the page content on a client-side
+ * route change. Starts at 0.35 opacity rather than 0, so a route change never
+ * looks like a blank page, and the shared header and footer stay put, that is
+ * what makes the navigation feel continuous rather than a swap.
+ */
+@keyframes page-in {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------- Storage notice and brand flourish ----------------
+ * Keyframes stay at the top level, outside @layer, so nothing in the
+ * component layer can accidentally outrank them. */
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes flourish-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes flourish-settle {
+  from {
+    transform: scale(0.985);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes flourish-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  55% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes flourish-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Components and custom utilities.
+ *  Kept inside @layer components so Tailwind utilities (which live in a
+ *  later layer) can still override them, e.g. `hidden sm:inline-flex`
+ *  on a `.btn` must win over the button's own `display`.
+ * ------------------------------------------------------------------ */
+@layer components {
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-bold tracking-[0.16em] uppercase;
+  }
+
+  .gradient-text-light {
+    background: linear-gradient(100deg, #f8b79c 0%, #f4703c 45%, #f2521b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .gradient-text-dark {
+    background: linear-gradient(100deg, #a83208 0%, #c6390d 60%, #f2521b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .surface-dark {
+    background-color: var(--color-ink-950);
+    background-image:
+      radial-gradient(
+        120% 90% at 12% 0%,
+        rgba(242, 82, 27, 0.16) 0%,
+        rgba(242, 82, 27, 0) 55%
+      ),
+      radial-gradient(
+        90% 70% at 92% 8%,
+        rgba(244, 112, 60, 0.12) 0%,
+        rgba(244, 112, 60, 0) 60%
+      );
+  }
+
+  .glow-flame {
+    background: radial-gradient(
+      circle at center,
+      rgba(242, 82, 27, 0.42) 0%,
+      rgba(242, 82, 27, 0.14) 45%,
+      rgba(242, 82, 27, 0) 70%
+    );
+  }
+
+  /* ---------------- Reveal on scroll ----------------
+   * Visible by default: nothing in the server-rendered page or in this
+   * stylesheet hides content. JavaScript adds `.reveal-armed` after
+   * hydration, and only to blocks still below the fold, so the fade is
+   * additive and can never leave a blank section behind. */
+  .reveal {
+    opacity: 1;
+  }
+
+  .reveal-armed {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    transition:
+      opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  .reveal-armed[data-from="left"] {
+    transform: translate3d(-18px, 0, 0);
+  }
+
+  .reveal-armed[data-from="right"] {
+    transform: translate3d(18px, 0, 0);
+  }
+
+  .reveal-armed[data-from="scale"] {
+    transform: scale(0.97);
+  }
+
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Hero entrance, CSS-only so it runs before hydration. */
+  .hero-rise {
+    opacity: 0;
+    animation: hero-rise 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ---------------- Page transition ----------------
+   * Added by JavaScript after a client-side navigation only: a fresh load, a
+   * deep link or a failed script never gets this class, so the content is
+   * always painted before it runs and can never be left faded out. */
+  .page-enter {
+    animation: page-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .anim-drift {
+    animation: drift-a var(--ff-dur, 16s) ease-in-out infinite;
+    animation-delay: var(--ff-delay, 0s);
+    will-change: transform, opacity;
+  }
+
+  .anim-spin-slow {
+    animation: spin-slow 90s linear infinite;
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .anim-breathe {
+    animation: breathe 9s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+    background-size: 68px 68px;
+    mask-image: radial-gradient(
+      115% 85% at 50% 0%,
+      #000 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      transparent 85%
+    );
+    -webkit-mask-image: radial-gradient(
+      115% 85% at 50% 0%,
+      #000 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      transparent 85%
+    );
+  }
+
+  .card-lift {
+    transition:
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.32s ease;
+  }
+
+  .card-lift:hover {
+    transform: translate3d(0, -6px, 0);
+  }
+
+  .sheen-host {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sheen-host::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.5) 50%,
+      transparent 100%
+    );
+    width: 32%;
+    transform: translate3d(-120%, 0, 0) skewX(-14deg);
+    opacity: 0;
+  }
+
+  .sheen-host:hover::after {
+    opacity: 1;
+    animation: sheen 0.7s ease-out;
+  }
+
+  /* ---------------- Header ----------------
+   * Condensed state and reading progress are written as a data attribute
+   * and a transform by one rAF-throttled listener, never as React state. */
+  .nav-bar {
+    /* The logo lockup scales through this one variable: it condenses with
+       the header instead of jumping. The file behind it is the for dark
+       variant, so no plate is needed on the dark surface. */
+    --brand-logo-h: 2.75rem;
+    background-color: transparent;
+    border-bottom: 1px solid transparent;
+    transition:
+      background-color 0.3s ease,
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  @media (min-width: 640px) {
+    .nav-bar {
+      --brand-logo-h: 3.25rem;
+    }
+  }
+
+  .nav-bar[data-scrolled="true"] {
+    --brand-logo-h: 2.5rem;
+    background-color: rgba(35, 31, 32, 0.97);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 50px -30px rgba(35, 31, 32, 0.95);
+  }
+
+  @media (min-width: 640px) {
+    .nav-bar[data-scrolled="true"] {
+      --brand-logo-h: 3rem;
+    }
+  }
+
+  .nav-inner {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    transition: padding 0.3s ease;
+  }
+
+  .nav-bar[data-scrolled="true"] .nav-inner {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .brand-logo {
+    display: block;
+    height: var(--brand-logo-h, 3rem);
+    width: auto;
+    transition: height 0.3s ease;
+  }
+
+  .nav-progress {
+    transform: scaleX(0);
+    transform-origin: left center;
+    will-change: transform;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full text-[0.95rem] font-bold;
+    transition:
+      transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.22s ease,
+      color 0.22s ease,
+      box-shadow 0.26s ease;
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn-flame {
+    @apply bg-flame-500 px-6 py-3.5 text-ink-950;
+    box-shadow: 0 10px 30px -12px rgba(242, 82, 27, 0.75);
+  }
+
+  .btn-flame:hover {
+    @apply bg-flame-400;
+    box-shadow: 0 16px 40px -12px rgba(242, 82, 27, 0.9);
+  }
+
+  .btn-ghost-dark {
+    @apply px-6 py-3.5 text-white;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .btn-ghost-dark:hover {
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* Magnetic wrapper: JS moves this, CSS handles press feedback inside. */
+  .magnet {
+    display: inline-block;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Process connector: drawn on scroll, visible without JS. */
+  .connector {
+    transform-origin: left center;
+    transform: none;
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reveal-armed.connector {
+    transform: scaleX(0);
+  }
+
+  .reveal.is-visible.connector {
+    transform: none;
+  }
+
+  /* Form controls */
+  .field {
+    @apply w-full rounded-xl border border-white/12 bg-white/6 px-4 py-3 text-[0.95rem] text-white;
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  .field::placeholder {
+    /* Mid grey: clearly dimmer than the white text the customer types, so a
+       hint never reads as an answer already in the field, and still light
+       enough to stay readable on the dark panel (5.3 to 1). */
+    color: #9a9294;
+  }
+  /* A select showing its "choose one" hint rather than a real answer, so the
+     hint is grey in the same way an input's placeholder is. */
+  .field-empty {
+    color: #9a9294;
+  }
+
+  .field:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  .field:focus {
+    border-color: rgba(244, 112, 60, 0.8);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .field option {
+    color: #231f20;
+  }
+
+  /* ---------------- Storage notice ----------------
+   * Added after hydration, so it is not part of the first paint at all. The
+   * page below it gains exactly its height as bottom padding, measured from
+   * the element itself (--cookie-h), so the footer's phone, WhatsApp and email
+   * links are never underneath it. */
+  .cookie-notice {
+    animation: notice-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* ---------------- Quote form status panels ----------------
+   * The sent, not sent and not switched on panels fade in as they replace the
+   * sending line. Inside @layer components so Tailwind utilities still win, and
+   * the reduced motion block at the foot of this file removes the motion. */
+  .notice-panel {
+    animation: notice-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ---------------- Brand flourish ----------------
+   * Fixed and non interactive: it cannot move the page, cannot be clicked and
+   * cannot take a scroll. The artwork is the header logo used as a mask, so
+   * there is no second copy of the file and the browser already has it. */
+  .brand-flourish {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    animation: flourish-out 0.26s ease-in 0.62s both;
+  }
+
+  .brand-flourish-glow {
+    position: absolute;
+    height: 18rem;
+    width: 18rem;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at center,
+      rgba(242, 82, 27, 0.32) 0%,
+      rgba(242, 82, 27, 0.12) 45%,
+      rgba(242, 82, 27, 0) 70%
+    );
+    animation: flourish-glow 0.9s ease-in-out both;
+  }
+
+  .brand-flourish-mark {
+    width: 10.5rem;
+    aspect-ratio: 290 / 156;
+    background-image: linear-gradient(
+      100deg,
+      #f8ab0c 0%,
+      #f2521b 58%,
+      #f4703c 100%
+    );
+    -webkit-mask-image: url("/brand/firefly-logo-on-dark.png");
+    mask-image: url("/brand/firefly-logo-on-dark.png");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+    animation:
+      flourish-wipe 0.44s cubic-bezier(0.22, 1, 0.36, 1) both,
+      flourish-settle 0.34s ease-in-out 0.44s both;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Decorative layers off screen or in a background tab are paused.
+ *  Deliberately unlayered so they outrank the animation utilities.
+ * ------------------------------------------------------------------ */
+[data-decor].is-offscreen *,
+[data-decor].is-offscreen {
+  animation-play-state: paused;
+}
+
+html[data-tab="hidden"] [data-decor],
+html[data-tab="hidden"] [data-decor] *,
+html[data-tab="hidden"] [data-forever] {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Reduced motion: motion removed, never merely slowed.
+ *  Deliberately unlayered so it outranks every layered utility.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal,
+  .reveal-armed,
+  .reveal-armed[data-from="left"],
+  .reveal-armed[data-from="right"],
+  .reveal-armed[data-from="scale"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .hero-rise {
+    opacity: 1 !important;
+  }
+
+  .page-enter {
+    animation: none !important;
+  }
+
+  /* The flourish is not slowed down, it is not drawn: the settled state is the
+     page itself. (The component also refuses to mount under reduced motion.) */
+  .brand-flourish {
+    display: none !important;
+  }
+
+  /* The notice still appears, with no movement at all. */
+  .cookie-notice {
+    animation: none !important;
+  }
+
+  .connector,
+  .reveal-armed.connector {
+    transform: none !important;
+  }
+
+  /* Purely decorative layers are switched off, not left mid-animation. */
+  .decor-motion,
+  .sheen-host::after {
+    display: none !important;
+  }
+}
+
+/* Reveals must not hide content when printing or previewing as PDF. */
+@media print {
+  .reveal,
+  .reveal-armed,
+  .hero-rise,
+  .page-enter {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
