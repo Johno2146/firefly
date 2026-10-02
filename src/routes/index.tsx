@@ -7,6 +7,7 @@ import { Process } from "~/components/Process";
 import { Reveal } from "~/components/Reveal";
 import { ServicesSummary } from "~/components/Services";
 import { WhyFirefly } from "~/components/WhyFirefly";
+import { businessStructuredData } from "~/lib/business-ld";
 import { photo } from "~/lib/content";
 import { absolute, socialMeta } from "~/lib/site";
 
@@ -16,7 +17,8 @@ const TEASER_PHOTOS = [photo("02"), photo("01"), photo("11")];
 const TITLE = "Firefly Solar: home solar, battery storage & aftercare";
 const DESCRIPTION =
   "Firefly Solar designs, installs and looks after home solar and battery systems in Boksburg, Gauteng, with battery storage and the security and automation that belongs in the same home. Start with a free quote.";
-const URL = absolute("/");
+/** The route path: the canonical and `og:url` are built from it per request. */
+const PATH = "/";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,9 +37,21 @@ export const Route = createFileRoute("/")({
         content:
           "Residential solar design, installation, battery storage and aftercare in Boksburg, Gauteng. Ask for a free quote by email or WhatsApp.",
       },
-      ...socialMeta({ url: URL, title: TITLE, description: DESCRIPTION }),
+      ...socialMeta({ url: absolute(PATH), title: TITLE, description: DESCRIPTION }),
     ],
-    links: [{ rel: "canonical", href: URL }],
+    links: [{ rel: "canonical", href: absolute(PATH) }],
+    /**
+     * The business itself, declared to search engines in JSON-LD (see
+     * ~/lib/business-ld for every fact in it and every fact deliberately left
+     * out). On the home page only, and its `url`, `logo` and `@id` follow the
+     * host serving the page.
+     */
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(businessStructuredData({ url: absolute(PATH) })),
+      },
+    ],
   }),
   component: Home,
 });

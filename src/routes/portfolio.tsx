@@ -10,7 +10,8 @@ import { absolute, socialMeta } from "~/lib/site";
 const TITLE = "Portfolio: installation photographs | Firefly Solar";
 const DESCRIPTION =
   "Fifteen installation photographs supplied by Firefly Solar: rooftop solar arrays, battery and inverter installations and the details in between, from work around Boksburg and Gauteng.";
-const URL = absolute("/portfolio");
+/** The route path: the canonical and `og:url` are built from it per request. */
+const PATH = "/portfolio";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
@@ -29,9 +30,9 @@ export const Route = createFileRoute("/portfolio")({
         content:
           "Rooftop solar arrays, battery and inverter installations. Photographs supplied by Firefly Solar.",
       },
-      ...socialMeta({ url: URL, title: TITLE, description: DESCRIPTION }),
+      ...socialMeta({ url: absolute(PATH), title: TITLE, description: DESCRIPTION }),
     ],
-    links: [{ rel: "canonical", href: URL }],
+    links: [{ rel: "canonical", href: absolute(PATH) }],
   }),
   component: PortfolioPage,
 });

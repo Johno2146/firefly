@@ -21,7 +21,8 @@ const CONTACT_PHOTO = photo("10");
 const TITLE = "Contact & free quote | Firefly Solar";
 const DESCRIPTION =
   "Request a free solar quote from Firefly Solar in Boksburg, Gauteng: name, email, postal code and property type is all it takes to start. Call or WhatsApp +27 71 300 7422, or email gavin@fireflysolar.co.za.";
-const URL = absolute("/contact");
+/** The route path: the canonical and `og:url` are built from it per request. */
+const PATH = "/contact";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -40,9 +41,9 @@ export const Route = createFileRoute("/contact")({
         content:
           "Tell us about your roof and we come back with a design and a fixed price. Send your details by email or WhatsApp, or call +27 71 300 7422.",
       },
-      ...socialMeta({ url: URL, title: TITLE, description: DESCRIPTION }),
+      ...socialMeta({ url: absolute(PATH), title: TITLE, description: DESCRIPTION }),
     ],
-    links: [{ rel: "canonical", href: URL }],
+    links: [{ rel: "canonical", href: absolute(PATH) }],
   }),
   component: ContactPage,
 });

@@ -10,7 +10,8 @@ import { absolute, socialMeta } from "~/lib/site";
 const TITLE = "Services: solar, batteries, alarms & CCTV | Firefly Solar";
 const DESCRIPTION =
   "Residential solar and battery storage first, then intruder alarms, CCTV, electric fencing and gate and garage door automation. What each service covers, the solar process, and how to ask about your home.";
-const URL = absolute("/services");
+/** The route path: the canonical and `og:url` are built from it per request. */
+const PATH = "/services";
 
 export const Route = createFileRoute("/services")({
   head: () => ({
@@ -29,9 +30,9 @@ export const Route = createFileRoute("/services")({
         content:
           "Solar and batteries at the core, plus alarms, CCTV, electric fencing and gate and garage door automation.",
       },
-      ...socialMeta({ url: URL, title: TITLE, description: DESCRIPTION }),
+      ...socialMeta({ url: absolute(PATH), title: TITLE, description: DESCRIPTION }),
     ],
-    links: [{ rel: "canonical", href: URL }],
+    links: [{ rel: "canonical", href: absolute(PATH) }],
   }),
   component: ServicesPage,
 });
